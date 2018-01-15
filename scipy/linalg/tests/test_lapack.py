@@ -540,7 +540,7 @@ def test_larfg_larf():
         a[1:, :] = larf(v, tau.conjugate(), a[1:, :], np.zeros(a.shape[1]))
 
         # apply transform from the right
-        a[:, 1:] = larf(v, tau, a[:,1:], np.zeros(a.shape[0]), side='R')
+        a[:, 1:] = larf(v, tau, a[:, 1:], np.zeros(a.shape[0]), side='R')
 
         assert_allclose(a[:, 0], expected, atol=1e-5)
         assert_allclose(a[0, :], expected, atol=1e-5)
@@ -814,7 +814,9 @@ def test_sygst():
         # DTYPES = <s,d> sygst
         n = 10
 
-        potrf, sygst, syevd, sygvd = get_lapack_funcs(('potrf', 'sygst', 'syevd', 'sygvd'), dtype=dtype)
+        potrf, sygst, syevd, sygvd = get_lapack_funcs(('potrf', 'sygst',
+                                                       'syevd', 'sygvd'),
+                                                      dtype=dtype)
 
         A = rand(n, n).astype(dtype)
         A = (A + A.T)/2
@@ -843,7 +845,9 @@ def test_hegst():
         # DTYPES = <c,z> hegst
         n = 10
 
-        potrf, hegst, heevd, hegvd = get_lapack_funcs(('potrf', 'hegst', 'heevd', 'hegvd'), dtype=dtype)
+        potrf, hegst, heevd, hegvd = get_lapack_funcs(('potrf', 'hegst',
+                                                       'heevd', 'hegvd'),
+                                                      dtype=dtype)
 
         A = rand(n, n).astype(dtype) + 1j * rand(n, n).astype(dtype)
         A = (A + A.conj().T)/2
@@ -864,3 +868,65 @@ def test_hegst():
         eig, _, info = heevd(a)
         assert_(info == 0)
         assert_allclose(eig, eig_gvd, rtol=1e-4)
+
+
+# This test is for the fully exposed version of syevr/heevr.
+def test_sy_he_evrfull():
+    seed(1234)
+    for ind, dtype in enumerate(REAL_DTYPES):
+        A = rand(1000, 1000).astype(dtype)
+        A = A.T + A
+        syevrf, syevrflw = get_lapack_funcs(('syevr_full', 'syevr_full_lwork'),
+                                            dtype=dtype)
+        lw, liw, info = syevrflw(300)
+        # String protection
+        assert_raises(Exception, syevrf, A, 'X')
+        assert_raises(Exception, syevrf, A, 'N', 'Y')
+        assert_raises(Exception, syevrf, A, 'N', 'A', 'Z')
+
+        #
+        a, b, c, d, e = syevrf(A, jobz='N', lwork=lw, liwork=liw)
+        assert_(a.size == 1000)
+        a, b, c, d, e = syevrf(A, jobz='V', range='A', lwork=lw, liwork=liw)
+        # Full range with index
+        a, b, c, d, e = syevrf(A, jobz='V', range='I', il=1, iu=1000, lwork=lw,
+                               liwork=liw)
+        assert_(c == 1000)
+        # Limited range with index
+        a, b, c, d, e = syevrf(A, jobz='V', range='I', il=141, iu=150,
+                               lwork=lw, liwork=liw)
+        assert_(c == 10)
+        # Limited range with value bounds
+        a, b, c, d, e = syevrf(A, jobz='V', range='V', vl=-1, vu=5,
+                               lwork=lw, liwork=liw)
+        assert_(not np.any(a[c:]))
+
+    for ind, dtype in enumerate(COMPLEX_DTYPES):
+        A = rand(1000, 1000).astype(dtype) + rand(1000, 1000).astype(dtype)
+        A = A.conj().T + A
+        heevrf, heevrflw = get_lapack_funcs(('heevr_full', 'heevr_full_lwork'),
+                                            dtype=dtype)
+        lw, lrw, liw, info = heevrflw(1000)
+        assert_(info == 0)
+        # String protection
+        assert_raises(Exception, heevrf, A, 'X')
+        assert_raises(Exception, heevrf, A, 'N', 'Y')
+        assert_raises(Exception, heevrf, A, 'N', 'A', 'Z')
+
+        # Standard call with only eigvals computed
+        a, b, c, d, e = heevrf(A, jobz='N', lwork=lw, lrwork=lrw, liwork=liw)
+        assert_(a.size == 1000)
+        a, b, c, d, e = heevrf(A, jobz='V', range='A', lwork=lw, lrwork=lrw,
+                               liwork=liw)
+        # Full range with index
+        a, b, c, d, e = heevrf(A, jobz='V', range='I', il=1, iu=1000, lwork=lw,
+                               lrwork=lrw, liwork=liw)
+        assert_(c == 1000)
+        # Limited range with index
+        a, b, c, d, e = heevrf(A, jobz='V', range='I', il=141, iu=150,
+                               lwork=lw, lrwork=lrw, liwork=liw)
+        assert_(c == 10)
+        # Limited range with value bounds
+        a, b, c, d, e = heevrf(A, jobz='V', range='V', vl=-1, vu=5,
+                               lwork=lw, lrwork=lrw, liwork=liw)
+        assert_(not np.any(a[c:]))

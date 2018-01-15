@@ -256,7 +256,7 @@ def eig(a, b=None, left=False, right=True, overwrite_a=False,
 
 def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
          overwrite_b=False, turbo=True, eigvals=None, type=1,
-         check_finite=True):
+         check_finite=True, eig_range=None):
     """
     Solve an ordinary or generalized eigenvalue problem for a complex
     Hermitian or real symmetric matrix.
@@ -274,8 +274,9 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
         A complex Hermitian or real symmetric matrix whose eigenvalues and
         eigenvectors will be computed.
     b : (M, M) array_like, optional
-        A complex Hermitian or real symmetric definite positive matrix in.
-        If omitted, identity matrix is assumed.
+        A complex Hermitian or real symmetric positive definite matrix.
+        If omitted, identity matrix is assumed and standard eigenvalue problem
+        is solved.
     lower : bool, optional
         Whether the pertinent array data is taken from the lower or upper
         triangle of `a`. (Default: lower)
@@ -288,7 +289,8 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
     eigvals : tuple (lo, hi), optional
         Indexes of the smallest and largest (in ascending order) eigenvalues
         and corresponding eigenvectors to be returned: 0 <= lo <= hi <= M-1.
-        If omitted, all eigenvalues and eigenvectors are returned.
+        If omitted, all eigenvalues, and if requested eigenvectors are
+        returned.
     type : int, optional
         Specifies the problem type to be solved:
 
@@ -305,6 +307,10 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
         Whether to check that the input matrices contain only finite numbers.
         Disabling may give a performance gain, but may result in problems
         (crashes, non-termination) if the inputs do contain infinities or NaNs.
+    eig_range : tuple (vl, vu), optional
+        Values of the smallest and largest (in ascending order) eigenvalues
+        and corresponding eigenvectors to be returned: vl < vu. If omitted,
+        all eigenvalues, and if requested, eigenvectors are returned.
 
     Returns
     -------
@@ -331,9 +337,9 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
     ------
     LinAlgError
         If eigenvalue computation does not converge,
-        an error occurred, or b matrix is not definite positive. Note that
-        if input matrices are not symmetric or hermitian, no error is reported
-        but results will be wrong.
+        If an internal LAPACK error is reported,
+        In the case of a generalized problem, if b array is not positive
+        definite.
 
     See Also
     --------
@@ -352,19 +358,25 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
     True
 
     """
+    if eigvals is not None and eig_range is not None:
+        raise ValueError("The range of eigenvalues can be specified either via"
+                         "indices(eigvals) or values(eig_range) but not both.")
     a1 = _asarray_validated(a, check_finite=check_finite)
-    if len(a1.shape) != 2 or a1.shape[0] != a1.shape[1]:
-        raise ValueError('expected square matrix')
+    if a1.ndim != 2 or a1.shape[0] != a1.shape[1]:
+        raise ValueError('Input array \'a\' is not square {}.'.format(a.shape))
     overwrite_a = overwrite_a or (_datacopied(a1, a))
+
     if iscomplexobj(a1):
         cplx = True
     else:
         cplx = False
+
     if b is not None:
         b1 = _asarray_validated(b, check_finite=check_finite)
         overwrite_b = overwrite_b or _datacopied(b1, b)
-        if len(b1.shape) != 2 or b1.shape[0] != b1.shape[1]:
-            raise ValueError('expected square matrix')
+        if b1.ndim != 2 or b1.shape[0] != b1.shape[1]:
+            raise ValueError('Input array \'b\' is not square {}.'
+                             ''.format(b.shape))
 
         if b1.shape != a1.shape:
             raise ValueError("wrong b dimensions %s, should "
@@ -377,45 +389,68 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
         b1 = None
 
     # Set job for fortran routines
-    _job = (eigvals_only and 'N') or 'V'
+    _job = 'N' if eigvals_only else 'V'
 
     # port eigenvalue range from python to fortran convention
     if eigvals is not None:
-        lo, hi = eigvals
-        if lo < 0 or hi >= a1.shape[0]:
+        il, iu = eigvals
+
+        if il < 0 or iu >= a1.shape[0]:
             raise ValueError('The eigenvalue range specified is not valid.\n'
-                             'Valid range is [%s,%s]' % (0, a1.shape[0]-1))
-        lo += 1
-        hi += 1
-        eigvals = (lo, hi)
+                             'Valid range is [0, {}]'.format(a1.shape[0]-1))
+        elif il >= iu:
+            raise ValueError('The eigenvalue interval specification is not '
+                             'valid; the values should be in increasing'
+                             ' order.')
 
+        _range, il, iu = 'I', il+1, iu+1
+
+    elif eig_range is not None:
+        vl, vu = eig_range
+        if vl >= vu:
+            raise ValueError('The eigenvalue interval specification is not '
+                             'valid; the values should be in increasing'
+                             ' order.')
+        _range = 'V'
+    else:
+        _range = 'A'
     # set lower
-    if lower:
-        uplo = 'L'
-    else:
-        uplo = 'U'
-
+    uplo = 'L' if lower else 'U'
     # fix prefix for lapack routines
-    if cplx:
-        pfx = 'he'
-    else:
-        pfx = 'sy'
+    pfx = 'he' if cplx else 'sy'
 
     #  Standard Eigenvalue Problem
     #  Use '*evr' routines
-    # FIXME: implement calculation of optimal lwork
-    #        for all lapack routines
     if b1 is None:
-        driver = pfx+'evr'
-        (evr,) = get_lapack_funcs((driver,), (a1,))
-        if eigvals is None:
-            w, v, info = evr(a1, uplo=uplo, jobz=_job, range="A", il=1,
-                             iu=a1.shape[0], overwrite_a=overwrite_a)
+        # '?evr_full' is the rewrapping of '?evr'. 
+        driver = pfx+'evr_full'
+        evrf, evrflw = get_lapack_funcs((driver, driver+'_lwork'), (a1,))
+        # Get optimal block sizes
+        lw_arr = _compute_lwork(evrflw, a1.shape[0], uplo)
+        lw_kwargs = {'lwork': lw_arr[0]}
+        lw_kwargs['liwork'] = lw_arr[-1]
+        if cplx:
+            lw_kwargs['lrwork'] = lw_arr[1]
+
+
+        if _range == 'A':
+            w, v, m, _, info = evrf(a1, jobz=_job, range="A", uplo=uplo,
+                                    **lw_kwargs)
+
+        elif _range == 'V':
+            w, v, m, _, info = evrf(a1, uplo=uplo, jobz=_job, range="V", vl=vl,
+                              vu=vu, overwrite_a=overwrite_a, **lw_kwargs)
+            w = w[:m]
+            # m is not known a priori for value based selection hence full
+            # array is allocated. Here m is now known and truncated if eigvecs
+            # are requested. Otherwise a scalar is returned and can be
+            # discarded.
+            v = v[:, :m] if _job == 'V' else v
         else:
             (lo, hi) = eigvals
-            w_tot, v, info = evr(a1, uplo=uplo, jobz=_job, range="I",
-                                 il=lo, iu=hi, overwrite_a=overwrite_a)
-            w = w_tot[0:hi-lo+1]
+            w, v, m, _, info = evrf(a1, uplo=uplo, jobz=_job, range="I", il=lo,
+                              iu=hi, overwrite_a=overwrite_a, **lw_kwargs)
+            w = w[:m]
 
     # Generalized Eigenvalue Problem
     else:
@@ -439,10 +474,11 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
         # Use '*gv' routine if turbo is off and no eigvals are specified
         else:
             driver = pfx+'gv'
-            (gv,) = get_lapack_funcs((driver,), (a1, b1))
+            gv, gvlw = get_lapack_funcs((driver, driver+'_lwork'), (a1, b1))
+            lw = _compute_lwork(gvlw, a1.shape[0], uplo)
             v, w, info = gv(a1, b1, uplo=uplo, itype=type, jobz=_job,
                             overwrite_a=overwrite_a,
-                            overwrite_b=overwrite_b)
+                            overwrite_b=overwrite_b, lwork=lw)
 
     # Check if we had a  successful exit
     if info == 0:
