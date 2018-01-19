@@ -873,12 +873,13 @@ def test_hegst():
 # This test is for the fully exposed version of syevr/heevr.
 def test_sy_he_evrfull():
     seed(1234)
+    n = 1000
     for ind, dtype in enumerate(REAL_DTYPES):
-        A = rand(1000, 1000).astype(dtype)
+        A = rand(n, n).astype(dtype)
         A = A.T + A
         syevrf, syevrflw = get_lapack_funcs(('syevr_full', 'syevr_full_lwork'),
                                             dtype=dtype)
-        lw, liw, info = syevrflw(300)
+        lw, liw = _compute_lwork(syevrflw, n)
         # String protection
         assert_raises(Exception, syevrf, A, 'X')
         assert_raises(Exception, syevrf, A, 'N', 'Y')
@@ -886,12 +887,12 @@ def test_sy_he_evrfull():
 
         #
         a, b, c, d, e = syevrf(A, jobz='N', lwork=lw, liwork=liw)
-        assert_(a.size == 1000)
+        assert_(a.size == n)
         a, b, c, d, e = syevrf(A, jobz='V', range='A', lwork=lw, liwork=liw)
         # Full range with index
         a, b, c, d, e = syevrf(A, jobz='V', range='I', il=1, iu=1000, lwork=lw,
                                liwork=liw)
-        assert_(c == 1000)
+        assert_(c == n)
         # Limited range with index
         a, b, c, d, e = syevrf(A, jobz='V', range='I', il=141, iu=150,
                                lwork=lw, liwork=liw)
@@ -901,12 +902,13 @@ def test_sy_he_evrfull():
                                lwork=lw, liwork=liw)
         assert_(not np.any(a[c:]))
 
+    n = 1000
     for ind, dtype in enumerate(COMPLEX_DTYPES):
-        A = rand(1000, 1000).astype(dtype) + rand(1000, 1000).astype(dtype)
+        A = rand(n, n).astype(dtype) + rand(n, n).astype(dtype)
         A = A.conj().T + A
         heevrf, heevrflw = get_lapack_funcs(('heevr_full', 'heevr_full_lwork'),
                                             dtype=dtype)
-        lw, lrw, liw, info = heevrflw(1000)
+        lw, lrw, liw, info = heevrflw(n)
         assert_(info == 0)
         # String protection
         assert_raises(Exception, heevrf, A, 'X')

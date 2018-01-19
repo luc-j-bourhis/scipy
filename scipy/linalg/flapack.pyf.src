@@ -3712,7 +3712,7 @@ subroutine <prefix2c>hegv(itype,jobz,uplo,n,a,lda,b,ldb,w,work,lwork,rwork,info)
 
 end subroutine <prefix2c>hegv
 
-subroutine <prefix2c>hegv_lwork(uplo,n,a,lda,b,ldb,w,work,lwork,rwork,info)
+subroutine <prefix2c>hegv_lwork(itype,jobz,uplo,n,a,lda,b,ldb,w,work,lwork,rwork,info)
     ! LWORK Query routine for (c/z)hegv
 
     fortranname <prefix2c>hegv

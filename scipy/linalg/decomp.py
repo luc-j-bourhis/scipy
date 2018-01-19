@@ -422,7 +422,7 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
     #  Standard Eigenvalue Problem
     #  Use '*evr' routines
     if b1 is None:
-        # '?evr_full' is the rewrapping of '?evr'. 
+        # '?evr_full' is the rewrapping of '?evr'.
         driver = pfx+'evr_full'
         evrf, evrflw = get_lapack_funcs((driver, driver+'_lwork'), (a1,))
         # Get optimal block sizes
@@ -432,14 +432,14 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
         if cplx:
             lw_kwargs['lrwork'] = lw_arr[1]
 
-
         if _range == 'A':
             w, v, m, _, info = evrf(a1, jobz=_job, range="A", uplo=uplo,
                                     **lw_kwargs)
 
         elif _range == 'V':
             w, v, m, _, info = evrf(a1, uplo=uplo, jobz=_job, range="V", vl=vl,
-                              vu=vu, overwrite_a=overwrite_a, **lw_kwargs)
+                                    vu=vu, overwrite_a=overwrite_a,
+                                    **lw_kwargs)
             w = w[:m]
             # m is not known a priori for value based selection hence full
             # array is allocated. Here m is now known and truncated if eigvecs
@@ -449,7 +449,8 @@ def eigh(a, b=None, lower=True, eigvals_only=False, overwrite_a=False,
         else:
             (lo, hi) = eigvals
             w, v, m, _, info = evrf(a1, uplo=uplo, jobz=_job, range="I", il=lo,
-                              iu=hi, overwrite_a=overwrite_a, **lw_kwargs)
+                                    iu=hi, overwrite_a=overwrite_a,
+                                    **lw_kwargs)
             w = w[:m]
 
     # Generalized Eigenvalue Problem
