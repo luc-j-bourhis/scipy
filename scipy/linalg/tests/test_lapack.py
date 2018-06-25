@@ -895,11 +895,11 @@ def test_rfp():
     tfttp, tpttf = get_lapack_funcs(('tfttp', 'tpttf'))
 
     even_size = 6
-    even_rfp_shape = (3, 7)
-    even_rfp_shape_trans = (7, 3)
+    even_rfp_shape = (7, 3)
+    even_rfp_shape_trans = (3, 7)
     odd_size = 5
-    odd_rfp_shape = (3, 5)
-    odd_rfp_shape_trans = (5, 3)
+    odd_rfp_shape = (5, 3)
+    odd_rfp_shape_trans = (3, 5)
 
     # Upper
     # -----
@@ -913,7 +913,7 @@ def test_rfp():
                    1005, 1015, 1025, 1035, 1045, 1055])
     Arf, info = tpttf(even_size, Ap)  # Default: uplo = 'U'
     ArfT, info = tpttf(even_size, Ap, transr='T')
-    assert (Arf.reshape(even_rfp_shape).T == np.array(
+    assert (Arf.reshape(even_rfp_shape, order='F') == np.array(
         [[1003, 1004, 1005],
          [1013, 1014, 1015],
          [1023, 1024, 1025],
@@ -921,8 +921,8 @@ def test_rfp():
          [1000, 1044, 1045],
          [1001, 1011, 1055],
          [1002, 1012, 1022]])).all()
-    assert (Arf.reshape(even_rfp_shape).T ==
-            ArfT.reshape(even_rfp_shape_trans)).all()
+    assert (Arf.reshape(even_rfp_shape, order='F').T ==
+            ArfT.reshape(even_rfp_shape_trans, order='F')).all()
     Ap1, info = tfttp(even_size, Arf)
     assert (Ap1 == Ap).all()
     Ap1T, info = tfttp(even_size, ArfT, transr='T')
@@ -936,14 +936,14 @@ def test_rfp():
                    1004, 1014, 1024, 1034, 1044])
     Arf, info = tpttf(odd_size, Ap)  # Default: uplo = 'U'
     ArfT, info = tpttf(odd_size, Ap, transr='T')
-    assert (Arf.reshape(odd_rfp_shape).T == np.array(
+    assert (Arf.reshape(odd_rfp_shape, order='F') == np.array(
         [[1002, 1003, 1004],
          [1012, 1013, 1014],
          [1022, 1023, 1024],
          [1000, 1033, 1034],
          [1001, 1011, 1044]])).all()
-    assert (Arf.reshape(odd_rfp_shape).T ==
-            ArfT.reshape(odd_rfp_shape_trans)).all()
+    assert (Arf.reshape(odd_rfp_shape, order='F').T ==
+            ArfT.reshape(odd_rfp_shape_trans, order='F')).all()
     Ap1, info = tfttp(odd_size, Arf)
     assert (Ap1 == Ap).all()
     Ap1T, info = tfttp(odd_size, ArfT, transr='T')
@@ -961,7 +961,7 @@ def test_rfp():
                                                  1055])
     Arf, info = tpttf(even_size, Ap, uplo='L')
     ArfT, info = tpttf(even_size, Ap, uplo='L', transr='T')
-    assert (Arf.reshape(even_rfp_shape).T == np.array(
+    assert (Arf.reshape(even_rfp_shape, order='F') == np.array(
         [[1033, 1043, 1053],
          [1000, 1044, 1054],
          [1010, 1011, 1055],
@@ -969,8 +969,8 @@ def test_rfp():
          [1030, 1031, 1032],
          [1040, 1041, 1042],
          [1050, 1051, 1052]])).all()
-    assert (Arf.reshape(even_rfp_shape).T ==
-            ArfT.reshape(even_rfp_shape_trans)).all()
+    assert (Arf.reshape(even_rfp_shape, order='F').T ==
+            ArfT.reshape(even_rfp_shape_trans, order='F')).all()
     Ap1, info = tfttp(even_size, Arf, uplo='L')
     assert (Ap1 == Ap).all()
     Ap1T, info = tfttp(even_size, ArfT, uplo='L', transr='T')
@@ -984,14 +984,14 @@ def test_rfp():
                                            1044])
     Arf, info = tpttf(odd_size, Ap, uplo='L')
     ArfT, info = tpttf(odd_size, Ap, uplo='L', transr='T')
-    assert (Arf.reshape(odd_rfp_shape).T == np.array(
+    assert (Arf.reshape(odd_rfp_shape, order='F') == np.array(
         [[1000, 1033, 1043],
          [1010, 1011, 1044],
          [1020, 1021, 1022],
          [1030, 1031, 1032],
          [1040, 1041, 1042]])).all()
-    assert (Arf.reshape(odd_rfp_shape).T ==
-            ArfT.reshape(odd_rfp_shape_trans)).all()
+    assert (Arf.reshape(odd_rfp_shape, order='F').T ==
+            ArfT.reshape(odd_rfp_shape_trans, order='F')).all()
     Ap1, info = tfttp(odd_size, Arf, uplo='L')
     assert (Ap1 == Ap).all()
     Ap1T, info = tfttp(odd_size, ArfT, uplo='L', transr='T')
